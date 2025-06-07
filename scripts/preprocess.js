@@ -13,26 +13,32 @@ function processRawIps() {
     // 预处理IP格式
     const processedData = rawData
       .replace(/\.{2,}/g, '.')  // 替换连续多个点为单个点
-      .replace(/[^0-9\.$$$$:]/g, '') // 移除非IP字符
+      .replace(/[^0-9\.:]/g, '') // 移除非IP字符（保留冒号用于端口）
       .replace(/(\d)\.(\d)/g, '$1.$2'); // 确保数字间有分隔符
     
     // 分割IP地址
     const ipList = processedData.split(/[\s,;]+/);
     
-    // 过滤有效IP
+    // 过滤有效IPv4地址
     const validIps = ipList.filter(ip => {
       // IPv4格式验证
       const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/;
       
-      // 完全重写的IPv6正则表达式
-      // 匹配格式: [2001:db8::1] 或 2001:db8::1 或 [2001:db8::1]:443
-      const ipv6Regex = /^($$([0-9a-fA-F:]+)$$(:\d+)?|([0-9a-fA-F:]+)(:\d+)?)$/;
+      // 验证IP格式
+      if (!ipv4Regex.test(ip)) return false;
       
-      return ipv4Regex.test(ip) || ipv6Regex.test(ip);
+      // 验证IP各段数值范围
+      const [ipPart, portPart] = ip.split(':');
+      const segments = ipPart.split('.');
+      
+      return segments.every(segment => {
+        const num = parseInt(segment, 10);
+        return num >= 0 && num <= 255;
+      });
     });
     
     // 去重并排序
-    const uniqueIps = [...new Set(validIps)];
+    const uniqueIps = [...new Set(validIps)].sort();
     
     // 保存处理后的IP列表
     fs.writeFileSync(PROXY_LIST_FILE, uniqueIps.join('\n'));
