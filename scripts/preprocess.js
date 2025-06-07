@@ -23,8 +23,8 @@ function processRawIps() {
     const validIps = ipList.filter(ip => {
       // IPv4格式验证
       const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/;
-      // IPv6格式验证
-      const ipv6Regex = /^$$?([0-9a-fA-F:]+)$$?(:\d+)?$/;
+      // IPv6格式验证（修复后的正则）
+      const ipv6Regex = /^$$?[0-9a-fA-F:]+$$?(:\d+)?$/;
       
       return ipv4Regex.test(ip) || ipv6Regex.test(ip);
     });
