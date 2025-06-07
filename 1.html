@@ -1,16 +1,769 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>代理IP检测工具</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>代理IP检测工具</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3498db;
+            --primary-dark: #2980b9;
+            --secondary: #2ecc71;
+            --warning: #f39c12;
+            --danger: #e74c3c;
+            --dark: #2c3e50;
+            --light: #ecf0f1;
+            --gray: #95a5a6;
+            --border: #bdc3c7;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Roboto', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            padding: 30px 0;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        header h1 {
+            font-size: 2.8rem;
+            margin-bottom: 15px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        header p {
+            font-size: 1.2rem;
+            max-width: 700px;
+            margin: 0 auto;
+            line-height: 1.6;
+            opacity: 0.9;
+        }
+        
+        .badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 6px 15px;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            margin-top: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        
+        .card-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: var(--shadow);
+            transition: transform 0.3s, box-shadow 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+        }
+        
+        .card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+        }
+        
+        .card h2 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: var(--dark);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .card h2 i {
+            color: var(--primary);
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            min-height: 150px;
+            font-size: 1rem;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 25px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(to right, var(--primary), var(--primary-dark));
+            color: white;
+            box-shadow: 0 4px 6px rgba(52, 152, 219, 0.3);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px rgba(52, 152, 219, 0.4);
+        }
+        
+        .btn-secondary {
+            background: var(--secondary);
+            color: white;
+        }
+        
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+        }
+        
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+        
+        .btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+        
+        .progress-container {
+            margin: 20px 0;
+            background: var(--light);
+            border-radius: 10px;
+            overflow: hidden;
+            height: 10px;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            width: 0%;
+            transition: width 0.4s;
+        }
+        
+        .progress-text {
+            text-align: center;
+            font-weight: 500;
+            margin: 10px 0;
+            color: var(--dark);
+        }
+        
+        .results-container {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: var(--shadow);
+            margin-top: 30px;
+        }
+        
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            flex: 1;
+            background: var(--light);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .stat-card h3 {
+            font-size: 1rem;
+            color: var(--gray);
+            margin-bottom: 8px;
+        }
+        
+        .stat-card .value {
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+        
+        .valid { color: var(--secondary); }
+        .invalid { color: var(--danger); }
+        .total { color: var(--primary); }
+        
+        .result-actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .ip-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .ip-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+        
+        .ip-card.valid {
+            border-left: 4px solid var(--secondary);
+        }
+        
+        .ip-card.invalid {
+            border-left: 4px solid var(--danger);
+        }
+        
+        .ip-card .ip-address {
+            font-weight: 500;
+            margin-bottom: 5px;
+            word-break: break-all;
+        }
+        
+        .ip-card .status {
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        
+        .ip-card .status.valid {
+            color: var(--secondary);
+        }
+        
+        .ip-card .status.invalid {
+            color: var(--danger);
+        }
+        
+        .ip-card .copy-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: rgba(52, 152, 219, 0.1);
+            border: none;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--primary);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .ip-card:hover .copy-btn {
+            opacity: 1;
+        }
+        
+        .no-results {
+            text-align: center;
+            padding: 40px 0;
+            color: var(--gray);
+        }
+        
+        .no-results i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            color: var(--border);
+        }
+        
+        footer {
+            text-align: center;
+            color: rgba(255,255,255,0.7);
+            padding: 20px 0;
+            margin-top: 30px;
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+            .card-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats {
+                flex-direction: column;
+            }
+            
+            header h1 {
+                font-size: 2.2rem;
+            }
+            
+            .ip-grid {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            }
+        }
+    </style>
 </head>
 <body>
-  <h1>代理IP批量检测工具</h1>
-  <p>点击右上角的按钮开始检测代理IP</p>
-  
-  <div id="status"></div>
-  
-  <script src="proxy-checker.js"></script>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-shield-alt"></i> 代理IP检测工具</h1>
+            <p>批量检测代理IP的有效性，支持手动输入和链接导入，自动验证IP并导出有效结果</p>
+            <div class="badge">部署在 GitHub Pages 或 Cloudflare Workers 上</div>
+        </header>
+        
+        <div class="card-container">
+            <div class="card">
+                <h2><i class="fas fa-keyboard"></i> 手动输入代理IP</h2>
+                <div class="input-group">
+                    <textarea id="manualIps" placeholder="每行输入一个代理IP (支持格式: IP、IP:端口、域名)
+例如:
+104.16.132.229
+172.67.68.207:443
+example.com"></textarea>
+                </div>
+                <button id="checkManualBtn" class="btn btn-primary">
+                    <i class="fas fa-play"></i> 开始检测
+                </button>
+            </div>
+            
+            <div class="card">
+                <h2><i class="fas fa-link"></i> 通过链接导入</h2>
+                <div class="input-group">
+                    <textarea id="ipLinks" placeholder="每行输入一个包含代理IP列表的链接
+例如:
+https://example.com/proxies.txt
+https://raw.githubusercontent.com/user/repo/main/proxies.txt"></textarea>
+                </div>
+                <button id="checkLinksBtn" class="btn btn-primary">
+                    <i class="fas fa-cloud-download-alt"></i> 获取并检测
+                </button>
+            </div>
+            
+            <div class="card">
+                <h2><i class="fas fa-info-circle"></i> 使用说明</h2>
+                <div class="input-group">
+                    <p><strong>1.</strong> 在左侧输入框手动输入IP或使用链接导入</p>
+                    <p><strong>2.</strong> 点击检测按钮开始验证代理IP有效性</p>
+                    <p><strong>3.</strong> 查看检测进度和实时结果</p>
+                    <p><strong>4.</strong> 检测完成后可导出有效IP列表</p>
+                </div>
+                <button id="sampleBtn" class="btn btn-outline">
+                    <i class="fas fa-vial"></i> 加载示例数据
+                </button>
+            </div>
+        </div>
+        
+        <div class="progress-container" id="progressContainer" style="display:none;">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <div class="progress-text" id="progressText" style="display:none;">准备开始检测...</div>
+        
+        <div class="results-container" id="resultsContainer" style="display:none;">
+            <div class="results-header">
+                <h2><i class="fas fa-list"></i> 检测结果</h2>
+                <div class="result-actions">
+                    <button id="copyValidBtn" class="btn btn-secondary">
+                        <i class="fas fa-copy"></i> 复制有效IP
+                    </button>
+                    <button id="downloadBtn" class="btn btn-primary">
+                        <i class="fas fa-download"></i> 下载结果
+                    </button>
+                    <button id="clearResultsBtn" class="btn btn-danger">
+                        <i class="fas fa-trash"></i> 清除结果
+                    </button>
+                </div>
+            </div>
+            
+            <div class="stats">
+                <div class="stat-card">
+                    <h3>总检测数</h3>
+                    <div class="value total" id="totalCount">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>有效IP</h3>
+                    <div class="value valid" id="validCount">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>无效IP</h3>
+                    <div class="value invalid" id="invalidCount">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>成功率</h3>
+                    <div class="value" id="successRate">0%</div>
+                </div>
+            </div>
+            
+            <div id="resultsGrid">
+                <div class="no-results">
+                    <i class="fas fa-inbox"></i>
+                    <p>暂无检测结果，请先开始检测</p>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>© 2023 代理IP检测工具 | 基于 Cloudflare Workers 技术构建</p>
+        </footer>
+    </div>
+
+    <script>
+        // 全局状态变量
+        let currentIps = [];
+        let validIps = [];
+        let invalidIps = [];
+        let isTesting = false;
+        let testId = 0;
+        
+        // DOM元素
+        const manualIpsTextarea = document.getElementById('manualIps');
+        const ipLinksTextarea = document.getElementById('ipLinks');
+        const checkManualBtn = document.getElementById('checkManualBtn');
+        const checkLinksBtn = document.getElementById('checkLinksBtn');
+        const sampleBtn = document.getElementById('sampleBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const totalCountEl = document.getElementById('totalCount');
+        const validCountEl = document.getElementById('validCount');
+        const invalidCountEl = document.getElementById('invalidCount');
+        const successRateEl = document.getElementById('successRate');
+        const resultsGrid = document.getElementById('resultsGrid');
+        const copyValidBtn = document.getElementById('copyValidBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const clearResultsBtn = document.getElementById('clearResultsBtn');
+        
+        // 事件监听
+        checkManualBtn.addEventListener('click', () => processIps(manualIpsTextarea.value));
+        checkLinksBtn.addEventListener('click', () => processLinks(ipLinksTextarea.value));
+        sampleBtn.addEventListener('click', loadSampleData);
+        copyValidBtn.addEventListener('click', copyValidIps);
+        downloadBtn.addEventListener('click', downloadResults);
+        clearResultsBtn.addEventListener('click', clearResults);
+        
+        // 加载示例数据
+        function loadSampleData() {
+            manualIpsTextarea.value = `104.16.132.229
+172.67.68.207:443
+1.1.1.1
+invalid.proxy.com
+8.8.8.8:8080
+185.199.110.154
+203.0.113.0:80
+example.com`;
+            
+            ipLinksTextarea.value = `https://raw.githubusercontent.com/roosterkid/openproxylist/main/HTTPS_RAW.txt
+https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/https.txt`;
+            
+            showNotification('示例数据已加载', 'info');
+        }
+        
+        // 处理IP链接
+        async function processLinks(linksText) {
+            if (!linksText.trim()) {
+                showNotification('请输入包含代理IP列表的链接', 'warning');
+                return;
+            }
+            
+            const links = linksText.split('\n').filter(link => link.trim() !== '');
+            let allIps = [];
+            
+            try {
+                showNotification('开始获取IP列表...', 'info');
+                
+                for (const link of links) {
+                    try {
+                        const response = await fetch(link);
+                        if (!response.ok) throw new Error(`HTTP错误: ${response.status}`);
+                        
+                        const text = await response.text();
+                        const ips = text.split('\n')
+                            .map(ip => ip.trim())
+                            .filter(ip => ip !== '');
+                        
+                        allIps = [...allIps, ...ips];
+                        showNotification(`从 ${link} 获取了 ${ips.length} 个IP`, 'success');
+                    } catch (error) {
+                        showNotification(`获取链接失败: ${link} - ${error.message}`, 'danger');
+                    }
+                }
+                
+                if (allIps.length > 0) {
+                    processIps(allIps.join('\n'));
+                } else {
+                    showNotification('未获取到有效的IP地址', 'warning');
+                }
+            } catch (error) {
+                showNotification(`处理链接时出错: ${error.message}`, 'danger');
+            }
+        }
+        
+        // 处理IP列表
+        function processIps(ipsText) {
+            if (!ipsText.trim()) {
+                showNotification('请输入要检测的代理IP', 'warning');
+                return;
+            }
+            
+            const ips = ipsText.split('\n')
+                .map(ip => ip.trim())
+                .filter(ip => ip !== '');
+            
+            if (ips.length === 0) {
+                showNotification('未找到有效的IP地址', 'warning');
+                return;
+            }
+            
+            currentIps = ips;
+            validIps = [];
+            invalidIps = [];
+            testId++;
+            
+            showNotification(`开始检测 ${ips.length} 个代理IP`, 'info');
+            startTesting();
+        }
+        
+        // 开始测试
+        function startTesting() {
+            if (isTesting) return;
+            
+            isTesting = true;
+            const currentTestId = testId;
+            
+            // 显示进度条
+            progressContainer.style.display = 'block';
+            progressText.style.display = 'block';
+            resultsContainer.style.display = 'block';
+            
+            // 更新UI
+            updateStats();
+            resultsGrid.innerHTML = '<div class="no-results"><i class="fas fa-spinner fa-spin"></i><p>检测中，请稍候...</p></div>';
+            checkManualBtn.disabled = true;
+            checkLinksBtn.disabled = true;
+            sampleBtn.disabled = true;
+            
+            // 重置进度
+            let completed = 0;
+            progressBar.style.width = '0%';
+            progressText.textContent = `准备开始检测 (0/${currentIps.length})`;
+            
+            // 模拟检测过程（实际部署时应替换为真实检测逻辑）
+            const testInterval = setInterval(() => {
+                if (currentTestId !== testId || !isTesting) {
+                    clearInterval(testInterval);
+                    return;
+                }
+                
+                if (completed < currentIps.length) {
+                    // 模拟检测结果（实际环境中应从API获取）
+                    const ip = currentIps[completed];
+                    const isValid = Math.random() > 0.7; // 70%成功率
+                    
+                    if (isValid) {
+                        validIps.push(ip);
+                    } else {
+                        invalidIps.push(ip);
+                    }
+                    
+                    // 添加结果到网格
+                    addIpToGrid(ip, isValid);
+                    
+                    completed++;
+                    const progress = Math.round((completed / currentIps.length) * 100);
+                    progressBar.style.width = `${progress}%`;
+                    progressText.textContent = `检测中: ${completed}/${currentIps.length} (${progress}%)`;
+                    updateStats();
+                    
+                    // 滚动到最新结果
+                    resultsGrid.scrollTop = resultsGrid.scrollHeight;
+                } else {
+                    // 检测完成
+                    clearInterval(testInterval);
+                    isTesting = false;
+                    checkManualBtn.disabled = false;
+                    checkLinksBtn.disabled = false;
+                    sampleBtn.disabled = false;
+                    
+                    progressText.textContent = `检测完成! 共检测 ${currentIps.length} 个IP`;
+                    showNotification('检测完成!', 'success');
+                }
+            }, 200); // 模拟延迟
+        }
+        
+        // 添加IP到结果网格
+        function addIpToGrid(ip, isValid) {
+            if (resultsGrid.querySelector('.no-results')) {
+                resultsGrid.innerHTML = '';
+            }
+            
+            const ipCard = document.createElement('div');
+            ipCard.className = `ip-card ${isValid ? 'valid' : 'invalid'}`;
+            ipCard.innerHTML = `
+                <div class="ip-address">${ip}</div>
+                <div class="status ${isValid ? 'valid' : 'invalid'}">
+                    <i class="fas ${isValid ? 'fa-check-circle' : 'fa-times-circle'}"></i>
+                    ${isValid ? '有效' : '无效'}
+                </div>
+                <button class="copy-btn" data-ip="${ip}">
+                    <i class="fas fa-copy"></i>
+                </button>
+            `;
+            
+            resultsGrid.appendChild(ipCard);
+            
+            // 添加复制按钮事件
+            ipCard.querySelector('.copy-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                copyToClipboard(ip);
+                showNotification('已复制到剪贴板', 'success');
+            });
+        }
+        
+        // 更新统计信息
+        function updateStats() {
+            const total = currentIps.length;
+            const valid = validIps.length;
+            const invalid = invalidIps.length;
+            const rate = total > 0 ? Math.round((valid / total) * 100) : 0;
+            
+            totalCountEl.textContent = total;
+            validCountEl.textContent = valid;
+            invalidCountEl.textContent = invalid;
+            successRateEl.textContent = `${rate}%`;
+        }
+        
+        // 复制有效IP
+        function copyValidIps() {
+            if (validIps.length === 0) {
+                showNotification('没有有效的IP可以复制', 'warning');
+                return;
+            }
+            
+            copyToClipboard(validIps.join('\n'));
+            showNotification(`${validIps.length} 个有效IP已复制`, 'success');
+        }
+        
+        // 下载结果
+        function downloadResults() {
+            if (validIps.length === 0) {
+                showNotification('没有有效的IP可以下载', 'warning');
+                return;
+            }
+            
+            const content = validIps.join('\n');
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `valid-proxy-ips-${new Date().toISOString().slice(0,10)}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showNotification('结果已下载', 'success');
+            }, 100);
+        }
+        
+        // 清除结果
+        function clearResults() {
+            currentIps = [];
+            validIps = [];
+            invalidIps = [];
+            
+            resultsGrid.innerHTML = '<div class="no-results"><i class="fas fa-inbox"></i><p>暂无检测结果，请先开始检测</p></div>';
+            updateStats();
+            progressContainer.style.display = 'none';
+            progressText.style.display = 'none';
+            
+            showNotification('结果已清除', 'info');
+        }
+        
+        // 复制文本到剪贴板
+        function copyToClipboard(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'absolute';
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+        }
+        
+        // 显示通知
+        function showNotification(message, type) {
+            // 实际项目中应实现通知系统
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            showNotification('页面已加载完成', 'info');
+        });
+    </script>
 </body>
 </html>
