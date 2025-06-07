@@ -7,7 +7,7 @@ on:
 
 env:
   # ===== 可配置变量区域 =====
-  TEST_URL: "https://www.cloudflare.com/"  # 测试目标URL
+  TEST_URL: "https://raw.githubusercontent.com/ymyuuu/IPDB/refs/heads/main/BestProxy/proxy.txt"  # 测试目标URL
   BATCH_SIZE: 50  # 每批测试IP数量
   TIMEOUT: 5000  # 超时时间(毫秒)
   MIN_SUCCESS_RATE: 0.8  # 最小成功率阈值
