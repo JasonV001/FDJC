@@ -1,0 +1,32 @@
+name: Proxy IP Checker
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # 每天UTC时间00:00运行
+  workflow_dispatch:       # 允许手动触发
+
+jobs:
+  check-proxies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Run IP checker
+      run: |
+        cd scripts
+        npm install got @cloudflare/workers-types
+        node proxy-checker.js
+        
+    - name: Upload results
+      uses: actions/upload-artifact@v4
+      with:
+        name: valid-proxy-ips
+        path: scripts/output/valid-ips.txt
