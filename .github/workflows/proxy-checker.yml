@@ -22,7 +22,6 @@ jobs:
     - name: Run IP checker
       run: |
         cd scripts
-        npm install got @cloudflare/workers-types
         node proxy-checker.js
         
     - name: Upload results
