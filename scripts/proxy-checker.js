@@ -1,11 +1,11 @@
-
-const { connect } = require('cloudflare:sockets');
+const net = require('net');
+const tls = require('tls');
 const fs = require('fs').promises;
 const path = require('path');
 
 // 配置参数
-const INPUT_FILE = path.join(__dirname, 'input/ips.txt');
-const OUTPUT_FILE = path.join(__dirname, 'output/valid-ips.txt');
+const INPUT_FILE = path.join(__dirname, 'input', 'ips.txt');
+const OUTPUT_FILE = path.join(__dirname, 'output', 'valid-ips.txt');
 const TEST_HOST = 'speed.cloudflare.com';
 const TEST_PATH = '/cdn-cgi/trace';
 const TEST_PORT = 443;
@@ -13,67 +13,57 @@ const TIMEOUT = 5000; // 5秒超时
 const CONCURRENCY = 10; // 并发检测数量
 
 async function checkProxyIP(ip) {
-  const tcpSocket = connect({
-    hostname: ip,
-    port: TEST_PORT,
-  });
+  return new Promise((resolve) => {
+    // 使用TLS连接（HTTPS）
+    const socket = tls.connect({
+      host: ip,
+      port: TEST_PORT,
+      servername: TEST_HOST,
+      rejectUnauthorized: false, // 忽略证书验证错误
+      timeout: TIMEOUT
+    }, () => {
+      // 连接建立后发送HTTP请求
+      const httpRequest = 
+        `GET ${TEST_PATH} HTTP/1.1\r\n` +
+        `Host: ${TEST_HOST}\r\n` +
+        `User-Agent: ProxyChecker/github\r\n` +
+        `Connection: close\r\n\r\n`;
+      socket.write(httpRequest);
+    });
 
-  try {
-    // 构建HTTP请求
-    const httpRequest = 
-      `GET ${TEST_PATH} HTTP/1.1\r\n` +
-      `Host: ${TEST_HOST}\r\n` +
-      `User-Agent: ProxyChecker/github\r\n` +
-      `Connection: close\r\n\r\n`;
-
-    // 发送请求
-    const writer = tcpSocket.writable.getWriter();
-    await writer.write(new TextEncoder().encode(httpRequest));
-    writer.releaseLock();
-
-    // 读取响应
-    const reader = tcpSocket.readable.getReader();
-    let responseData = new Uint8Array(0);
-    let receivedData = false;
-
-    const timer = setTimeout(async () => {
-      await reader.cancel();
-      await tcpSocket.close();
+    let responseData = '';
+    let timer = setTimeout(() => {
+      socket.destroy();
+      resolve(false);
     }, TIMEOUT);
 
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      
-      receivedData = true;
-      const newData = new Uint8Array(responseData.length + value.length);
-      newData.set(responseData);
-      newData.set(value, responseData.length);
-      responseData = newData;
-
-      // 检查是否收到完整响应
-      const responseText = new TextDecoder().decode(newData);
-      if (responseText.includes("\r\n\r\n")) {
-        break;
+    socket.on('data', (data) => {
+      responseData += data.toString();
+      // 如果已经收到完整的响应头，则提前结束
+      if (responseData.includes('\r\n\r\n')) {
+        clearTimeout(timer);
+        socket.destroy();
+        resolve(responseData.includes('cloudflare') || responseData.includes('Cloudflare'));
       }
-    }
+    });
 
-    clearTimeout(timer);
-    reader.releaseLock();
-    await tcpSocket.close();
+    socket.on('error', (error) => {
+      clearTimeout(timer);
+      resolve(false);
+    });
 
-    // 验证响应
-    const responseText = new TextDecoder().decode(responseData);
-    return responseText.includes('cloudflare') || 
-           responseText.includes('Cloudflare');
-
-  } catch (error) {
-    return false;
-  }
+    socket.on('end', () => {
+      clearTimeout(timer);
+      resolve(responseData.includes('cloudflare') || responseData.includes('Cloudflare'));
+    });
+  });
 }
 
 async function processIPList() {
   try {
+    // 确保输出目录存在
+    await fs.mkdir(path.dirname(OUTPUT_FILE), { recursive: true });
+
     // 读取IP列表
     const data = await fs.readFile(INPUT_FILE, 'utf-8');
     const ips = data.split('\n')
