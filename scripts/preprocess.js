@@ -7,43 +7,40 @@ const PROXY_LIST_FILE = path.join(__dirname, 'proxy-list.txt');
 
 function processRawIps() {
   try {
-    // 读取原始IP数据
+    // 1. 确保原始文件存在
+    if (!fs.existsSync(RAW_IPS_FILE)) {
+      throw new Error(`原始IP文件不存在: ${RAW_IPS_FILE}`);
+    }
+    
+    // 2. 读取原始IP数据
     const rawData = fs.readFileSync(RAW_IPS_FILE, 'utf-8').trim();
+    console.log(`原始数据长度: ${rawData.length} 字符`);
     
-    // 预处理IP格式
-    const processedData = rawData
-      .replace(/\.{2,}/g, '.')  // 替换连续多个点为单个点
-      .replace(/[^0-9\.:]/g, '') // 移除非IP字符（保留冒号用于端口）
-      .replace(/(\d)\.(\d)/g, '$1.$2'); // 确保数字间有分隔符
+    // 3. 提取所有IP地址（简化提取逻辑）
+    const ipList = [];
     
-    // 分割IP地址
-    const ipList = processedData.split(/[\s,;]+/);
+    // IPv4地址提取（带端口）
+    const ipv4Matches = rawData.match(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?\b/g) || [];
+    ipList.push(...ipv4Matches);
     
-    // 过滤有效IPv4地址
-    const validIps = ipList.filter(ip => {
-      // IPv4格式验证
-      const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/;
-      
-      // 验证IP格式
-      if (!ipv4Regex.test(ip)) return false;
-      
-      // 验证IP各段数值范围
-      const [ipPart, portPart] = ip.split(':');
-      const segments = ipPart.split('.');
-      
-      return segments.every(segment => {
-        const num = parseInt(segment, 10);
-        return num >= 0 && num <= 255;
-      });
-    });
+    // IPv6地址提取（带端口）
+    const ipv6Matches = rawData.match(/$$?[0-9a-fA-F:]+$$?(:\d+)?/g) || [];
+    ipList.push(...ipv6Matches);
     
-    // 去重并排序
-    const uniqueIps = [...new Set(validIps)].sort();
+    console.log(`提取到 ${ipList.length} 个IP地址`);
     
-    // 保存处理后的IP列表
-    fs.writeFileSync(PROXY_LIST_FILE, uniqueIps.join('\n'));
+    // 4. 去重
+    const uniqueIps = [...new Set(ipList)];
+    console.log(`去重后剩余 ${uniqueIps.length} 个唯一IP`);
     
-    console.log(`✅ 处理完成! 有效IP数量: ${uniqueIps.length}`);
+    // 5. 保存处理后的IP列表
+    if (uniqueIps.length > 0) {
+      fs.writeFileSync(PROXY_LIST_FILE, uniqueIps.join('\n'));
+      console.log(`✅ 处理完成! 有效IP数量: ${uniqueIps.length}`);
+    } else {
+      console.log('⚠️ 未找到有效IP地址，跳过文件写入');
+    }
+    
     return uniqueIps.length;
   } catch (error) {
     console.error('❌ 预处理失败:', error);
