@@ -18,8 +18,9 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '20'
-        cache: 'npm'
-    
+        # 移除 cache 参数，因为项目中没有 package-lock.json
+        # cache: 'npm'   # 注释掉这行
+        
     - name: Preprocess IP list
       run: |
         cd scripts
