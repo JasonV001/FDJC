@@ -1,0 +1,3 @@
+git add scripts/preprocess.js
+git commit -m "简化脚本：移除IPv6验证"
+git push origin main
