@@ -1,4 +1,4 @@
-name: 1Proxy IP Checker
+name: Proxy IP Checker
 
 on:
   schedule:
