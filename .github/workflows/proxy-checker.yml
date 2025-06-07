@@ -1,33 +1,136 @@
-name: Proxy IP Checker
+name: Reverse Proxy IP Tester
 
 on:
+  workflow_dispatch:  # 允许手动触发
   schedule:
-    - cron: '0 0 * * *'  # 每天UTC时间00:00运行
-  workflow_dispatch:       # 允许手动触发
+    - cron: '0 */6 * * *'  # 每6小时运行一次
+
+env:
+  # ===== 可配置变量区域 =====
+  TEST_URL: "https://www.cloudflare.com/"  # 测试目标URL
+  BATCH_SIZE: 50  # 每批测试IP数量
+  TIMEOUT: 5000  # 超时时间(毫秒)
+  MIN_SUCCESS_RATE: 0.8  # 最小成功率阈值
+  OUTPUT_FILE: "valid_ips.txt"  # 输出文件名
+  # ========================
 
 jobs:
-  check-proxies:
+  test-proxy-ips:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up Node.js
+    - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
 
-    - name: Run IP checker
+    - name: Install dependencies
+      run: npm install axios https-proxy-agent progress
+
+    - name: Create test script
       run: |
-        mkdir -p scripts/input
-        mkdir -p scripts/output
-        cd scripts
-        node proxy-checker.js
+        cat > ip-tester.js << 'EOF'
+        const axios = require('axios');
+        const { HttpsProxyAgent } = require('https-proxy-agent');
+        const ProgressBar = require('progress');
+        const fs = require('fs');
         
-    - name: Upload results
-      uses: actions/upload-artifact@v4
-      with:
-        name: valid-proxy-ips
-        path: scripts/output/valid-ips.txt
+        // ===== 配置区域 (与工作流变量一致) =====
+        const TEST_URL = process.env.TEST_URL || 'https://www.cloudflare.com/';
+        const BATCH_SIZE = parseInt(process.env.BATCH_SIZE) || 50;
+        const TIMEOUT = parseInt(process.env.TIMEOUT) || 5000;
+        const MIN_SUCCESS_RATE = parseFloat(process.env.MIN_SUCCESS_RATE) || 0.8;
+        const OUTPUT_FILE = process.env.OUTPUT_FILE || 'valid_ips.txt';
+        // ===================================
+        
+        // 从文件读取IP列表
+        const ipList = fs.readFileSync('ip-list.txt', 'utf-8')
+          .split('\n')
+          .map(ip => ip.trim())
+          .filter(ip => ip && !ip.startsWith('#'));
+        
+        // 有效IP集合
+        const validIps = new Set();
+        
+        // 创建进度条
+        const bar = new ProgressBar('[:bar] :percent :etas', {
+          complete: '=',
+          incomplete: ' ',
+          width: 40,
+          total: ipList.length
+        });
+        
+        // 批量测试函数
+        async function testBatch(batch) {
+          const promises = batch.map(ip => 
+            axios.get(TEST_URL, {
+              httpsAgent: new HttpsProxyAgent(`http://${ip}`),
+              timeout: TIMEOUT,
+              validateStatus: () => true  // 接受所有状态码
+            }).then(response => {
+              // 根据状态码判断是否成功
+              return response.status >= 200 && response.status < 400;
+            }).catch(() => false)
+          );
+          
+          const results = await Promise.all(promises);
+          return results;
+        }
+        
+        // 主测试流程
+        async function runTests() {
+          console.log(`开始测试 ${ipList.length} 个IP地址，目标URL: ${TEST_URL}`);
+          
+          for (let i = 0; i < ipList.length; i += BATCH_SIZE) {
+            const batch = ipList.slice(i, i + BATCH_SIZE);
+            const results = await testBatch(batch);
+            
+            // 处理结果
+            results.forEach((success, index) => {
+              const ip = batch[index];
+              if (success) {
+                validIps.add(ip.split(':')[0]);  // 只保存IP部分
+              }
+              bar.tick();
+            });
+            
+            // 保存当前有效IP
+            if (validIps.size > 0) {
+              fs.writeFileSync(OUTPUT_FILE, [...validIps].join('\n'));
+            }
+          }
+          
+          const successRate = validIps.size / ipList.length;
+          console.log(`\n测试完成! 有效IP: ${validIps.size}/${ipList.length} (${(successRate * 100).toFixed(1)}%)`);
+          
+          if (successRate < MIN_SUCCESS_RATE) {
+            console.error(`警告: 成功率低于阈值 ${MIN_SUCCESS_RATE * 100}%`);
+            process.exit(1);
+          }
+        }
+        
+        runTests().catch(err => {
+          console.error('测试出错:', err);
+          process.exit(1);
+        });
+        EOF
+
+    - name: Run IP tests
+      env:
+        TEST_URL: ${{ env.TEST_URL }}
+        BATCH_SIZE: ${{ env.BATCH_SIZE }}
+        TIMEOUT: ${{ env.TIMEOUT }}
+        MIN_SUCCESS_RATE: ${{ env.MIN_SUCCESS_RATE }}
+        OUTPUT_FILE: ${{ env.OUTPUT_FILE }}
+      run: node ip-tester.js
+
+    - name: Commit valid IPs
+      if: always()
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git add ${{ env.OUTPUT_FILE }}
+        git commit -m "Update valid IPs" || echo "No changes to commit"
+        git push
