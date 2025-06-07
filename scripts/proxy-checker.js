@@ -1,44 +1,29 @@
-const net = require('net');
-const tls = require('tls');
-const fs = require('fs').promises;
-const path = require('path');
-const https = require('https');
-const { promisify } = require('util');
-const pipeline = promisify(require('stream').pipeline);
-
 // 配置参数
 const INPUT_URL = 'https://raw.githubusercontent.com/Jason9699/ffip/refs/heads/main/proxies/proxies.txt';
-const OUTPUT_FILE = path.join(__dirname, 'output', 'valid-ips.txt');
+const OUTPUT_FILE = 'valid_ips.txt';
 const TEST_HOST = 'speed.cloudflare.com';
 const TEST_PATH = '/cdn-cgi/trace';
 const TEST_PORT = 443;
 const TIMEOUT = 5000; // 5秒超时
-const CONCURRENCY = 50; // 并发检测数量
+const CONCURRENCY = 20; // 并发检测数量
 const MAX_RETRIES = 2; // 最大重试次数
 
 // 下载IP列表函数
 async function downloadIPList(url) {
   try {
-    console.log(`⬇⬇️ 正在从 ${url} 下载IP列表...`);
-    const response = await new Promise((resolve, reject) => {
-      https.get(url, (res) => {
-        if (res.statusCode !== 200) {
-          reject(new Error(`下载失败: HTTP ${res.statusCode}`));
-          return;
-        }
-        
-        let data = '';
-        res.setEncoding('utf8');
-        res.on('data', (chunk) => data += chunk);
-        res.on('end', () => resolve(data));
-      }).on('error', reject);
-    });
+    console.log(`⬇⬇⬇⬇️ 正在从 ${url} 下载IP列表...`);
+    const response = await fetch(url);
     
+    if (!response.ok) {
+      throw new Error(`下载失败: HTTP ${response.status}`);
+    }
+    
+    const data = await response.text();
     console.log('✅ IP列表下载成功');
-    return response;
+    return data;
   } catch (error) {
-    console.error(`❌❌ 下载IP列表失败: ${error.message}`);
-    process.exit(1);
+    console.error(`❌❌❌❌ 下载IP列表失败: ${error.message}`);
+    throw error;
   }
 }
 
@@ -49,47 +34,43 @@ async function checkProxyIP(ip) {
   while (retryCount <= MAX_RETRIES) {
     try {
       return await new Promise((resolve) => {
-        // 使用TLS连接（HTTPS）
-        const socket = tls.connect({
-          host: ip,
-          port: TEST_PORT,
-          servername: TEST_HOST,
-          rejectUnauthorized: false, // 忽略证书验证错误
-          timeout: TIMEOUT
-        }, () => {
+        // 使用原生 WebSocket 替代 TLS
+        const socket = new WebSocket(`wss://${ip}:${TEST_PORT}`);
+        
+        socket.addEventListener('open', () => {
           // 连接建立后发送HTTP请求
           const httpRequest = 
             `GET ${TEST_PATH} HTTP/1.1\r\n` +
             `Host: ${TEST_HOST}\r\n` +
             `User-Agent: ProxyChecker/github\r\n` +
             `Connection: close\r\n\r\n`;
-          socket.write(httpRequest);
+          socket.send(httpRequest);
         });
 
         let responseData = '';
         let timer = setTimeout(() => {
-          socket.destroy();
+          socket.close();
           resolve(false);
         }, TIMEOUT);
 
-        socket.on('data', (data) => {
-          responseData += data.toString();
+        socket.addEventListener('message', (event) => {
+          responseData += event.data;
           // 如果已经收到完整的响应头，则提前结束
           if (responseData.includes('\r\n\r\n')) {
             clearTimeout(timer);
-            socket.destroy();
+            socket.close();
             const isValid = responseData.includes('cloudflare') || 
                            responseData.includes('Cloudflare');
             resolve(isValid);
           }
         });
 
-        socket.on('error', (error) => {
+        socket.addEventListener('error', (error) => {
           clearTimeout(timer);
           resolve(false);
         });
 
-        socket.on('end', () => {
+        socket.addEventListener('close', () => {
           clearTimeout(timer);
           const isValid = responseData.includes('cloudflare') || 
                          responseData.includes('Cloudflare');
@@ -99,7 +80,7 @@ async function checkProxyIP(ip) {
     } catch (error) {
       retryCount++;
       if (retryCount > MAX_RETRIES) {
-        console.error(`❌❌ IP检测失败 ${ip}: ${error.message}`);
+        console.error(`❌❌❌❌ IP检测失败 ${ip}: ${error.message}`);
         return false;
       }
       // 等待片刻后重试
@@ -112,68 +93,119 @@ async function checkProxyIP(ip) {
 // 处理IP列表
 async function processIPList() {
   try {
-    // 确保输出目录存在
-    await fs.mkdir(path.dirname(OUTPUT_FILE), { recursive: true });
-
     // 下载IP列表
     const data = await downloadIPList(INPUT_URL);
     
     // 解析IP列表
     const ips = data.split('\n')
-      .map(ip => ip.trim())
+      .map(ip => {
+        // 提取纯IP（不带端口）
+        const cleanIP = ip.split(':')[0].trim();
+        return cleanIP;
+      })
       .filter(ip => {
         // 验证IP格式 (IPv4)
         const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
         return ip && !ip.startsWith('#') && ipv4Regex.test(ip);
       });
     
-    console.log(`📥📥 加载 ${ips.length} 个IP进行检测...`);
+    console.log(`📥📥📥📥 加载 ${ips.length} 个IP进行检测...`);
 
     // 并发检测
     const validIPs = [];
-    const queue = [...ips];
     let processedCount = 0;
+    let validCount = 0;
     
     // 创建进度条函数
     function updateProgress() {
       const progress = Math.round((processedCount / ips.length) * 100);
-      process.stdout.write(`\r🚀🚀 进度: ${processedCount}/${ips.length} (${progress}%) | 有效IP: ${validIPs.length}`);
+      console.log(`\r🚀🚀🚀🚀 进度: ${processedCount}/${ips.length} (${progress}%) | 有效IP: ${validCount}`);
     }
     
-    console.log('\n⏳⏳⏳ 开始检测IP...');
+    console.log('\n⏳⏳⏳⏳⏳⏳⏳⏳⏳ 开始检测IP...');
     updateProgress();
     
-    while (queue.length > 0) {
-      const batch = queue.splice(0, CONCURRENCY);
-      // 修复这里的括号匹配问题
-      const results = await Promise.all(
-        batch.map(ip => checkProxyIP(ip).then(valid => {
-          processedCount++;
-          updateProgress();
-          return valid ? ip : null;
-        }))  // 添加了额外的闭合括号
-      );
+    // 使用分块处理实现并发控制
+    const chunks = [];
+    for (let i = 0; i < ips.length; i += CONCURRENCY) {
+      chunks.push(ips.slice(i, i + CONCURRENCY));
+    }
+    
+    for (const chunk of chunks) {
+      const results = await Promise.all(chunk.map(ip => checkProxyIP(ip)));
       
-      validIPs.push(...results.filter(ip => ip !== null));
+      results.forEach((isValid, index) => {
+        processedCount++;
+        if (isValid) {
+          validCount++;
+          validIPs.push(chunk[index]);
+        }
+        updateProgress();
+      });
+      
+      // 添加延迟以避免阻塞
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
     
     // 保存结果
-    await fs.writeFile(OUTPUT_FILE, validIPs.join('\n'));
-    console.log(`\n\n🎉🎉 检测完成！有效IP数量: ${validIPs.length}`);
-    console.log(`💾💾 结果已保存至: ${OUTPUT_FILE}`);
+    const blob = new Blob([validIPs.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    
+    // 创建下载链接
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = OUTPUT_FILE;
+    document.body.appendChild(a);
+    a.click();
+    
+    // 清理
+    setTimeout(() => {
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    }, 0);
+    
+    console.log(`\n\n🎉🎉🎉🎉 检测完成！有效IP数量: ${validIPs.length}`);
+    console.log(`💾💾💾💾 结果已保存至: ${OUTPUT_FILE}`);
 
     // 打印部分有效IP示例
     const sampleIPs = validIPs.slice(0, Math.min(5, validIPs.length));
     if (sampleIPs.length > 0) {
-      console.log('\n🔍🔍 有效IP示例:');
+      console.log('\n🔍🔍🔍🔍 有效IP示例:');
       sampleIPs.forEach(ip => console.log(`  - ${ip}`));
     }
 
   } catch (error) {
-    console.error('\n❌❌ 处理过程中出错:', error);
-    process.exit(1);
+    console.error('\n❌❌❌❌ 处理过程中出错:', error);
   }
 }
 
-// 启动检测
-processIPList();
+// 添加启动按钮到页面
+function addStartButton() {
+  const button = document.createElement('button');
+  button.textContent = '开始检测代理IP';
+  button.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 25px;
+    background: #3498db;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    z-index: 1000;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  `;
+  
+  button.addEventListener('click', processIPList);
+  
+  document.body.appendChild(button);
+}
+
+// 页面加载完成后添加按钮
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', addStartButton);
+} else {
+  addStartButton();
+}
